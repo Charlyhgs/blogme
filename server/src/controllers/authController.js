@@ -1,8 +1,11 @@
-const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const passport = require("../config/passport");
 const userService = require("../services/userService");
 const jwtService = require("../services/jwtService");
+
+const hashPassword = async (password) => {
+  return password ? await bcrypt.hash(password, 10) : null;
+};
 
 const validateRequiredFields = (fields, res) => {
   for (const field of fields) {
@@ -28,11 +31,14 @@ const register = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ message: "Email already in use" });
     }
+    const hashedPassword = await hashPassword(req.body.password);
+    const data = { ...req.body, password: hashedPassword };
 
-    const newUser = await userService.createUser(req.body);
-    res.status(201).json(newUser);
+    const newUser = await userService.createUser(data);
+    return res.status(201).json(newUser);
   } catch (error) {
-    res.status(500).json({ message: "Error registering user", error });
+    console.error(error);
+    return res.status(500).json({ message: "Error registering user", error });
   }
 };
 

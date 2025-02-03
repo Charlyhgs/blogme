@@ -1,61 +1,53 @@
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
-
-const hashPassword = async (password) => {
-  return password ? await bcrypt.hash(password, 10) : null;
-};
-
-const isUnauthorizedUpdate = (updates, requesterRole) => {
-  return updates.role && requesterRole !== "admin";
-};
+const { User } = require("../models");
 
 const createUser = async (data) => {
-  data.password = await hashPassword(data.password);
-  return User.create(data);
+  try {
+    return await User.create(data);
+  } catch (error) {
+    console.log(error);
+    throw new Error("Database error while creating user");
+  }
 };
 
 const getUserById = async (id) => {
-  return User.findByPk(id);
+  try {
+    return await User.findByPk(id);
+  } catch (error) {
+    throw new Error("Database error while fetching user");
+  }
 };
 
 const getUserByProviderId = async (providerId) => {
-  return User.findOne({ where: { providerId } });
+  try {
+    return await User.findOne({ where: { providerId } });
+  } catch (error) {
+    throw new Error("Database error while fetching user");
+  }
 };
 
 const getUserByEmail = async (email) => {
-  return User.findOne({ where: { email } });
+  try {
+    return await User.findOne({ where: { email } });
+  } catch (error) {
+    throw new Error("Database error while fetching users");
+  }
 };
 
 const getAllUsers = async () => {
-  return User.findAll();
+  try {
+    return await User.findAll();
+  } catch (error) {
+    throw new Error("Database error while fetching users");
+  }
 };
 
-const updateUser = async (id, updates, requester) => {
+const updateUser = async (id, updates) => {
   try {
-    const user = await User.findByPk(id);
-    if (!user) return null;
-
-    if (updates.password) {
-      updates.password = await hashPassword(updates.password);
-    }
-
-    if (isUnauthorizedUpdate(updates, requester.role)) {
-      console.log("Unauthorized role change attempt.");
-      return { user, hasBeenUpdated: false };
-    }
-
-    const changesMade = Object.keys(updates).some(
-      (key) => updates[key] !== user[key] && key !== "password"
-    );
-
-    if (!changesMade) return { user, hasBeenUpdated: false };
-
     const [affectedRows] = await User.update(updates, { where: { id } });
-    if (affectedRows === 0) return { user, hasBeenUpdated: false };
+    if (affectedRows === 0) return null;
 
-    return { user: await User.findByPk(id), hasBeenUpdated: true };
+    return await User.findByPk(id);
   } catch (error) {
-    console.error("Error updating user:", error);
     throw new Error("Database error while updating user");
   }
 };

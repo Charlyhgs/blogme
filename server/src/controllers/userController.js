@@ -1,4 +1,13 @@
 const userService = require("../services/userService");
+const bcrypt = require("bcryptjs");
+
+const hashPassword = async (password) => {
+  return password ? await bcrypt.hash(password, 10) : null;
+};
+
+const isUnauthorizedUpdate = (updates, requesterRole) => {
+  return updates.role && requesterRole !== "admin";
+};
 
 const getUser = async (req, res) => {
   try {
@@ -6,9 +15,9 @@ const getUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    res.json(user);
+    return res.json(user);
   } catch (error) {
-    res.status(500).json({ message: "Error retrieving user", error });
+    return res.status(500).json({ message: "Error retrieving user", error });
   }
 };
 
@@ -18,30 +27,46 @@ const getAllUsers = async (req, res) => {
     if (!users.length) {
       return res.status(404).json({ message: "No users found" });
     }
-    res.json(users);
+    return res.json(users);
   } catch (error) {
-    res.status(500).json({ message: "Error retrieving users", error });
+    return res.status(500).json({ message: "Error retrieving users", error });
   }
 };
 
 const updateUser = async (req, res) => {
   try {
-    const update = await userService.updateUser(
-      req.params.id,
-      req.body,
-      req.user
-    );
-    if (!update) {
-      return res.status(404).json({ message: "User not found" });
+    const user = await userService.getUserById(req.params.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const updates = { ...req.body };
+
+    if (updates.password) {
+      updates.password = await hashPassword(updates.password);
     }
 
-    const { user, hasBeenUpdated } = update;
-    let message = hasBeenUpdated
-      ? "Successfully updated."
-      : "No changes were made.";
-    res.json({ user, message });
+    if (isUnauthorizedUpdate(updates, req.user.role)) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized role change attempt." });
+    }
+
+    const changesMade = Object.keys(updates).some(
+      (key) => updates[key] !== user[key] && key !== "password"
+    );
+
+    if (!changesMade) {
+      return res.json({ user, message: "No changes were made." });
+    }
+
+    // Apply changes
+    const updatedUser = await userService.updateUser(req.params.id, updates);
+    if (!updatedUser) {
+      return res.status(500).json({ message: "Failed to update user." });
+    }
+
+    return res.json({ user: updatedUser, message: "Successfully updated." });
   } catch (error) {
-    res.status(500).json({ message: "Error updating user", error });
+    return res.status(500).json({ message: "Error updating user", error });
   }
 };
 
@@ -51,9 +76,9 @@ const deleteUser = async (req, res) => {
     if (!deleted) {
       return res.status(404).json({ message: "User not found" });
     }
-    res.json({ message: "User deleted successfully" });
+    return res.json({ message: "User deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Error deleting user", error });
+    return res.status(500).json({ message: "Error deleting user", error });
   }
 };
 
